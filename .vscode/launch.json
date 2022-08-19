@@ -12,6 +12,16 @@
             "console": "integratedTerminal",
             "cwd": "${fileDirname}",
             "justMyCode": true
-        }
+        },
+        {
+            "name": "Python: Current File with Args",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "cwd": "${fileDirname}",
+            "args": ["--configs", "defaults", "atari", "debug", "--env_id", "UnityEnv-1ball4goals"],
+            // "args": ["--configs", "defaults", "atari", "debug", "--env_id", "DMC-hopper_stand"],
+        },
     ]
 }
