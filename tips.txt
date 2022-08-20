@@ -1,6 +1,7 @@
 Current Run:
 \\wsl$\Ubuntu\home\mohan\GitRepos\pydreamer\mlruns\0\696ffd4d6dd040e5971ffa667b69b52c
 :///home/mohan/GitRepos/pydreamer/mlruns/0/31b35a292379463c9502c7806c6a4a64/artifacts/episodes/0
+file:///home/mohan/GitRepos/pydreamer/mlruns/0/f7963719f9724359b63d919361617f5f/artifacts/episodes/0
 
 Scripts to run:
 python train.py --configs defaults unityenv --env_id UnityEnv-1ball4goals --run_name UnityEnv-1ball4goals_1
