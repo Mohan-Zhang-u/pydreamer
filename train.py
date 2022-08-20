@@ -38,6 +38,8 @@ torch.backends.cudnn.benchmark = True  # type: ignore
 
 def run(conf):
     mlflow_start_or_resume(conf.run_name or conf.resume_id, conf.resume_id)
+    if conf.resume_id:
+        print(f"Resuming from {conf.resume_id}")
     try:
         mlflow.log_params({k: v for k, v in vars(conf).items() if not len(repr(v)) > 250})  # filter too long
     except Exception as e:

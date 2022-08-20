@@ -6,3 +6,5 @@ file:///home/mohan/GitRepos/pydreamer/mlruns/0/f7963719f9724359b63d919361617f5f/
 Scripts to run:
 python train.py --configs defaults unityenv --env_id UnityEnv-1ball4goals --run_name UnityEnv-1ball4goals_1
 
+python train.py --configs defaults unityenv --env_id UnityEnv-1ball4goals --run_name UnityEnv-1ball4goals_1 --resume_id f7963719f9724359b63d919361617f5f --offline_data_dir ./mlruns/0/f7963719f9724359b63d919361617f5f/artifacts/episodes/0
+
