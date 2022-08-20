@@ -59,7 +59,7 @@ class MiniGrid(gym.Env):
 
     def __init__(self, env_name, max_steps=1000, seed=None, agent_init_pos=None, agent_init_dir=0):
         env = gym.make(env_name)
-        assert isinstance(env, gym_minigrid.envs.MiniGridEnv)
+        # assert isinstance(env, gym_minigrid.minigrid.MiniGridEnv)
         self.env = env
         self.env.max_steps = max_steps
         if seed:
