@@ -62,7 +62,7 @@ defaults:
   model: dreamer
   deter_dim: 2048
   stoch_dim: 32
-  stoch_discrete: 32
+  stoch_discrete: 32 # here, 32 by 32
   hidden_dim: 1000
   gru_layers: 1
   gru_type: gru
@@ -218,6 +218,12 @@ rlgridworldenv:
   actor_dist: tanh_normal
   entropy: 1.0e-4
   # clip_rewards: tanh
+  batch_length: 11 # 50
+  batch_size: 2 # 50
+  data_workers: 0
+  imag_horizon: 7
+  stoch_dim: 64
+  stoch_discrete: 64 # here, 32 by 32
 
 debug:
   device: cpu

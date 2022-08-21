@@ -58,7 +58,7 @@ class MultiEncoder(nn.Module):
                                 reward_plane.to(image.dtype),
                                 terminal_plane.to(image.dtype)], dim=-3)
 
-            embed_image = self.encoder_image.forward(image)  # (T,B,E)
+            embed_image = self.encoder_image.forward(image)  # (T,B,E) # E: 1536
             embeds.append(embed_image)
 
         if self.encoder_vecobs:

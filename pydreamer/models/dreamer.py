@@ -105,7 +105,7 @@ class Dreamer(nn.Module):
         assert 'reward' in obs, '`reward` required in observation'
         assert 'reset' in obs, '`reset` required in observation'
         assert 'terminal' in obs, '`terminal` required in observation'
-        T, B = obs['action'].shape[:2]
+        T, B = obs['action'].shape[:2] # T: batch_length, B: batch_size
         I, H = iwae_samples, imag_horizon
 
         # World model
@@ -115,7 +115,7 @@ class Dreamer(nn.Module):
                                   in_state,
                                   iwae_samples=iwae_samples,
                                   do_open_loop=do_open_loop,
-                                  do_image_pred=do_image_pred)
+                                  do_image_pred=do_image_pred) # features: torch.Size([T, B, I, in_dim])
 
         # Map probe
 
@@ -260,7 +260,7 @@ class WorldModel(nn.Module):
 
         # Encoder
 
-        embed = self.encoder(obs)
+        embed = self.encoder(obs) # (T,B,E)
 
         # RSSM
 

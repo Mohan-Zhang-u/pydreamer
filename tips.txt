@@ -18,3 +18,8 @@ python train.py --configs defaults rlgridworldenv --env_id RLGridWorldEnv-FourTa
 python train.py --configs defaults rlgridworldenv --env_id RLGridWorldEnv-FourTargets --run_name RLGridWorldEnv-FourTargets_1 --offline_data_dir ./mlruns/0/7ec16f56b93c4ce8816c6713f048bc84/artifacts/episodes/0
 
 python train.py --configs defaults rlgridworldenv --env_id RLGridWorldEnv-FourTargets --run_name RLGridWorldEnv-FourTargets_1
+
+
+Notes:
+def zdistr
+computes the categorical distribution.

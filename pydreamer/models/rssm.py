@@ -44,11 +44,11 @@ class RSSMCore(nn.Module):
         posts = []
         states_h = []
         samples = []
-        (h, z) = in_state
+        (h, z) = in_state # deter, stoch
 
         for i in range(T):
             if not do_open_loop:
-                post, (h, z) = self.cell.forward(embeds[i], actions[i], reset_masks[i], (h, z))
+                post, (h, z) = self.cell.forward(embeds[i], actions[i], reset_masks[i], (h, z)) # h:(B, deter_dim), z:(B, stoch_dim * stoch_discrete)
             else:
                 post, (h, z) = self.cell.forward_prior(actions[i], reset_masks[i], (h, z))  # open loop: post=prior
             posts.append(post)
@@ -135,17 +135,17 @@ class RSSMCell(nn.Module):
         in_z = in_z * reset_mask
         B = action.shape[0]
 
-        x = self.z_mlp(in_z) + self.a_mlp(action)  # (B,H)
-        x = self.in_norm(x)
-        za = F.elu(x)
-        h = self.gru(za, in_h)                                             # (B, D)
+        x = self.z_mlp(in_z) + self.a_mlp(action)  # (B,H (hidden_dim))
+        x = self.in_norm(x) # (B,H)
+        za = F.elu(x) # (B,H)
+        h = self.gru(za, in_h)                                             # (B, D (deter_dim))
 
-        x = self.post_mlp_h(h) + self.post_mlp_e(embed)
-        x = self.post_norm(x)
-        post_in = F.elu(x)
-        post = self.post_mlp(post_in)                                    # (B, S*S)
+        x = self.post_mlp_h(h) + self.post_mlp_e(embed) # (B,H)
+        x = self.post_norm(x) # (B,H)
+        post_in = F.elu(x) # (B,H)
+        post = self.post_mlp(post_in)                                    # (B, S*S (stoch_dim * stoch_discrete))
         post_distr = self.zdistr(post)
-        sample = post_distr.rsample().reshape(B, -1)
+        sample = post_distr.rsample().reshape(B, -1) # (B, S*S (stoch_dim * stoch_discrete))
 
         return (
             post,                         # tensor(B, 2*S)
@@ -192,12 +192,12 @@ class RSSMCell(nn.Module):
         prior = self.prior_mlp(x)  # tensor(B,2S)
         return prior
 
-    def zdistr(self, pp: Tensor) -> D.Distribution:
+    def zdistr(self, pp: Tensor) -> D.Distribution: #pp: stoch, tensor(B, 1024)
         # pp = post or prior
         if self.stoch_discrete:
-            logits = pp.reshape(pp.shape[:-1] + (self.stoch_dim, self.stoch_discrete))
-            distr = D.OneHotCategoricalStraightThrough(logits=logits.float())  # NOTE: .float() needed to force float32 on AMP
-            distr = D.independent.Independent(distr, 1)  # This makes d.entropy() and d.kl() sum over stoch_dim
-            return distr
+            logits = pp.reshape(pp.shape[:-1] + (self.stoch_dim, self.stoch_discrete)) # torch.Size([B, stoch_dim, stoch_discrete])
+            distr = D.OneHotCategoricalStraightThrough(logits=logits.float())  # NOTE: .float() needed to force float32 on AMP # mean and stddev are the same as OneHotCategorical
+            distr = D.independent.Independent(distr, 1)  # This makes d.entropy() and d.kl() sum over stoch_dim # mean and stddev are the same as OneHotCategorical
+            return distr #TODO: D.kl.kl_divergence(distr_curr,distr_history) should do the trick.
         else:
             return diag_normal(pp)
