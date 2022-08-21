@@ -9,7 +9,7 @@ class RLGridWorldEnv(gym.Env):
 
     def __init__(self, name, action_repeat=1, size=(64, 64)):
         from rlgridworld.gridenv import GridEnv
-        env = GridEnv(load_chars_rep_fromd_dir=f'RLGridWorldSettings/{name}.txt', render_mode='human', obs_mode='single_rgb_array', render_width=size[0], render_height=size[1])
+        env = GridEnv(load_chars_rep_fromd_dir=f'RLGridWorldSettings/{name}.txt', render_mode=None, obs_mode='single_rgb_array', render_width=size[0], render_height=size[1])
         self.env = env
 
     @property

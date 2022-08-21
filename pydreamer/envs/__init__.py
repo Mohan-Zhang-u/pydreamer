@@ -49,7 +49,7 @@ def create_env(env_id: str, no_terminal: bool, env_time_limit: int, env_action_r
         
     elif env_id.startswith('RLGridWorldEnv-'):
         from .rlgridworldenv import RLGridWorldEnv
-        env = RLGridWorldEnv(env_id.split('-')[1].lower(), action_repeat=env_action_repeat)
+        env = RLGridWorldEnv(env_id.split('-')[1], action_repeat=env_action_repeat)
 
     else:
         env = gym.make(env_id)
