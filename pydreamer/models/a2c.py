@@ -24,8 +24,8 @@ class ActorCritic(nn.Module):
                  actor_dist='onehot'
                  ):
         super().__init__()
-        self.in_dim = in_dim
-        self.out_actions = out_actions
+        self.in_dim = in_dim # 3072
+        self.out_actions = out_actions # 2
         self.gamma = gamma
         self.lambda_ = lambda_gae
         self.entropy_weight = entropy_weight
@@ -41,7 +41,7 @@ class ActorCritic(nn.Module):
         self.train_steps = 0
 
     def forward_actor(self, features: Tensor) -> D.Distribution:
-        y = self.actor.forward(features).float()  # .float() to force float32 on AMP
+        y = self.actor.forward(features).float()  # .float() to force float32 on AMP # torch.Size([20, in_dim]) -> torch.Size([20, 2])
 
         if self.actor_dist == 'onehot':
             return D.OneHotCategorical(logits=y)
@@ -77,7 +77,7 @@ class ActorCritic(nn.Module):
         # GAE from https://arxiv.org/abs/1506.02438 eq (16)
         #   advantage_gae[t] = advantage[t] + (gamma lambda) advantage[t+1] + (gamma lambda)^2 advantage[t+2] + ...
 
-        value_t: TensorJM = self.critic_target.forward(features) # torch.Size([16, 20, 2**10 * 3]) -> torch.Size([16, 20])
+        value_t: TensorJM = self.critic_target.forward(features) # torch.Size([16, 20, in_dim]) -> torch.Size([16, 20])
         value0t: TensorHM = value_t[:-1]
         value1t: TensorHM = value_t[1:]
         advantage = - value0t + reward1 + self.gamma * (1.0 - terminal1) * value1t

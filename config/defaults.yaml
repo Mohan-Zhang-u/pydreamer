@@ -203,6 +203,7 @@ unityenv:
   env_time_limit: 200  # = max_step / decision period
   env_action_repeat: 1
   generator_workers: 1
+  actor_dist: tanh_normal
   # entropy: 1.0e-4
   # clip_rewards: tanh
 
@@ -212,6 +213,7 @@ rlgridworldenv:
   env_time_limit: 100  # = max_step / decision period
   env_action_repeat: 1
   generator_workers: 1
+  actor_dist: tanh_normal
   # entropy: 1.0e-4
   # clip_rewards: tanh
 
