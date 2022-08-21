@@ -2,6 +2,7 @@ import io
 import logging
 import os
 import posixpath
+from re import S
 import sys
 import tempfile
 import time
@@ -12,6 +13,7 @@ from typing import Any, Dict, Tuple, Union
 
 import numpy as np
 import yaml
+from torch.distributions.kl import kl_divergence
 
 try:
     from mlflow.store.artifact.artifact_repo import ArtifactRepository
@@ -259,6 +261,31 @@ def configure_logging(prefix='[%(name)s]', level=logging.DEBUG, info_color=None)
         logging.getLogger(logname).setLevel(logging.INFO)
 
 
-class DistributeBuffer:
-    def __init__(self, max_len=100000):
-        pass
+class DistributionBuffer:
+    def __init__(self, max_len):
+        self.max_len = max_len
+        self.q = [] # FIFO
+        
+    def __len__(self):
+        return len(self.q)
+    
+    def add(self, dist):
+        self.q.append(dist)
+        self.q = self.q[-self.max_len:]
+        
+    def compute_distance(self, dist_A, dist_B):
+        return kl_divergence(dist_A, dist_B).sum()
+        
+    def compute_min_distance(self, dposts):
+        #TODO:!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! do we need to first detach then compute distance?
+        #TODO:!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! What will this return before the first element?
+        # D.kl.kl_divergence(A, B) makes dist.mean (..., stoch_dim, stoch_discrete) -> values (...)
+        min_distance = float('inf')
+        for dist_B in self.q:
+            curr_distance = self.compute_distance(dposts, dist_B)
+            if curr_distance < min_distance:
+                min_distance = curr_distance
+        return min_distance
+    
+    # def compute_min_distance_detached(self, d):
+    #     pass

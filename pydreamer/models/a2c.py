@@ -21,7 +21,8 @@ class ActorCritic(nn.Module):
                  entropy_weight=1e-3,
                  target_interval=100,
                  actor_grad='reinforce',
-                 actor_dist='onehot'
+                 actor_dist='onehot',
+                 dist_distance_weight=0.0,
                  ):
         super().__init__()
         self.in_dim = in_dim # 3072
@@ -66,7 +67,8 @@ class ActorCritic(nn.Module):
                       terminals: D.Distribution,
                       posts=None, #TODO:!!!!!!!!!!!!!!!!!!!! use to compute the diversity loss! # (H, TBI,stoch_dim * stoch_discrete) (7, 22, 4096)
                       d=None,
-                      log_only=False
+                      distribution_buffer=None,
+                      log_only=False,
                       ):
         if not log_only:
             if self.train_steps % self.target_interval == 0:
@@ -74,6 +76,8 @@ class ActorCritic(nn.Module):
             self.train_steps += 1
             
         dposts = d(posts) #TODO:!!!!!!!!!!!!!!!!!!!! use to compute the diversity loss! # (H, TBI, stoch_dim, stoch_discrete) (7, 22, 64, 64)
+        min_distance = distribution_buffer.compute_min_distance(dposts)
+        
 
         reward1: TensorHM = rewards.mean[1:]
         terminal0: TensorHM = terminals.mean[:-1]
@@ -125,6 +129,10 @@ class ActorCritic(nn.Module):
         policy_entropy = policy_distr.entropy()
         loss_actor = loss_policy - self.entropy_weight * policy_entropy
         loss_actor = (loss_actor * reality_weight).mean()
+        
+        if min_distance == float('inf'):
+            min_distance = 0
+        
         assert (loss_policy.requires_grad and policy_entropy.requires_grad) or not loss_critic.requires_grad
 
         with torch.no_grad():

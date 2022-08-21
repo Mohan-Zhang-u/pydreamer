@@ -38,6 +38,7 @@ defaults:
   vecobs_weight: 1.0
   reward_weight: 1.0
   terminal_weight: 1.0
+  dist_distance_weight: 1.0
   adam_lr: 3.0e-4
   adam_lr_actor: 1.0e-4
   adam_lr_critic: 1.0e-4
@@ -50,6 +51,7 @@ defaults:
   grad_clip_ac: 200
   image_decoder_min_prob: 0
   amp: True
+  distribution_buffer_size: 10000
 
   # Eval
   test_batches: 61  # For unbiased test needs to be enough to cover full episodes

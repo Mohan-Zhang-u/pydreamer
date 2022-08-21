@@ -46,6 +46,7 @@ class Dreamer(nn.Module):
                               target_interval=conf.target_interval,
                               actor_grad=conf.actor_grad,
                               actor_dist=conf.actor_dist,
+                              dist_distance_weight=conf.dist_distance_weight,
                               )
 
         # Map probe
@@ -138,7 +139,7 @@ class Dreamer(nn.Module):
         features_dream, actions_dream, rewards_dream, terminals_dream, posts_dream = \
             self.dream(in_state_dream, H, self.ac.actor_grad == 'dynamics')  # (H+1,TBI,D)
         (loss_actor, loss_critic), metrics_ac, tensors_ac = \
-            self.ac.training_step(features_dream, actions_dream, rewards_dream, terminals_dream, posts=posts_dream, d=self.wm.core.zdistr)
+            self.ac.training_step(features_dream, actions_dream, rewards_dream, terminals_dream, posts=posts_dream, d=self.wm.core.zdistr, distribution_buffer=self.wm.distribution_buffer)
         metrics.update(**metrics_ac)
         tensors.update(policy_value=unflatten_batch(tensors_ac['value'][0], (T, B, I)).mean(-1))
 
@@ -153,7 +154,7 @@ class Dreamer(nn.Module):
                 in_state_dream: StateB = map_structure(states, lambda x: x.detach()[0, :, 0])  # type: ignore  # (T,B,I) => (B)
                 features_dream, actions_dream, rewards_dream, terminals_dream, posts_dream = self.dream(in_state_dream, T - 1)  # H = T-1
                 image_dream = self.wm.decoder.image.forward(features_dream)
-                _, _, tensors_ac = self.ac.training_step(features_dream, actions_dream, rewards_dream, terminals_dream, posts=posts_dream, d=self.wm.core.zdistr, log_only=True)
+                _, _, tensors_ac = self.ac.training_step(features_dream, actions_dream, rewards_dream, terminals_dream, posts=posts_dream, d=self.wm.core.zdistr, distribution_buffer=self.wm.distribution_buffer, log_only=True)
                 # The tensors are intentionally named same as in tensors, so the logged npz looks the same for dreamed or not
                 dream_tensors = dict(action_pred=torch.cat([obs['action'][:1], actions_dream]),  # first action is real from previous step
                                      reward_pred=rewards_dream.mean,
@@ -244,8 +245,7 @@ class WorldModel(nn.Module):
                              gru_type=conf.gru_type,
                              layer_norm=conf.layer_norm)
 
-        #TODO:!!!!!!!!!!!!!!! add storage of post here.
-        
+        self.distribution_buffer = DistributionBuffer(max_len=conf.distribution_buffer_size)
         
         # Init
 
@@ -311,7 +311,8 @@ class WorldModel(nn.Module):
         #TODO:!!!!!!!!!!!!!!! add d(post.detach() to storage, to calculate D.kl.kl_divergence()
         # convert tot TBI with this? in_state_dream: StateB = map_structure(states, lambda x: flatten_batch(x.detach())[0])  # type: ignore  # (T,B,I) => (TBI)
         dpost_to_store = d(flatten_batch(post.detach())[0])
-        loss_kl_exact = D.kl.kl_divergence(dpost, dprior)  # (T,B,I)
+        self.distribution_buffer.add(dpost_to_store)
+        loss_kl_exact = D.kl.kl_divergence(dpost, dprior)  # (T,B,I) (22, 64, 64)
         if iwae_samples == 1:
             # Analytic KL loss, standard for VAE
             if not self.kl_balance:
