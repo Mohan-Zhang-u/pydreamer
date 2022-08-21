@@ -23,7 +23,7 @@ class RLGridWorldEnv(gym.Env):
     def step(self, action):
         image, reward, done, info = self.env.step(action)
         obs = {'image': image}
-        return obs, reward, done, info
+        return obs, reward, done, {}
 
     def reset(self):
         image = self.env.reset()  # type: ignore
