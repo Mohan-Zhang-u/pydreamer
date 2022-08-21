@@ -13,3 +13,6 @@ torch-tb-profiler
 # Agents
 numba
 scikit-image
+
+#env
+rlgridworld
