@@ -87,7 +87,7 @@ defaults:
   gamma: 0.995
   lambda_gae: 0.95
   entropy: 0.003
-  target_interval: 100
+  target_interval: 100 # how long to update a target w.r.t. steps.
   imag_horizon: 15
   actor_grad: reinforce
   actor_dist: onehot
