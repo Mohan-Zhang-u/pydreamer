@@ -257,3 +257,8 @@ def configure_logging(prefix='[%(name)s]', level=logging.DEBUG, info_color=None)
         logging.getLogger(logname).setLevel(logging.WARNING)  # disable other loggers
     for logname in ['absl']:
         logging.getLogger(logname).setLevel(logging.INFO)
+
+
+class DistributeBuffer:
+    def __init__(self, max_len=100000):
+        
