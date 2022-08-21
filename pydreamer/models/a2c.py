@@ -64,12 +64,16 @@ class ActorCritic(nn.Module):
                       actions: TensorHMA,
                       rewards: D.Distribution,
                       terminals: D.Distribution,
+                      posts=None, #TODO:!!!!!!!!!!!!!!!!!!!! use to compute the diversity loss! # (H, TBI,stoch_dim * stoch_discrete) (7, 22, 4096)
+                      d=None,
                       log_only=False
                       ):
         if not log_only:
             if self.train_steps % self.target_interval == 0:
                 self.update_critic_target()
             self.train_steps += 1
+            
+        dposts = d(posts) #TODO:!!!!!!!!!!!!!!!!!!!! use to compute the diversity loss! # (H, TBI, stoch_dim, stoch_discrete) (7, 22, 64, 64)
 
         reward1: TensorHM = rewards.mean[1:]
         terminal0: TensorHM = terminals.mean[:-1]
@@ -78,7 +82,7 @@ class ActorCritic(nn.Module):
         # GAE from https://arxiv.org/abs/1506.02438 eq (16)
         #   advantage_gae[t] = advantage[t] + (gamma lambda) advantage[t+1] + (gamma lambda)^2 advantage[t+2] + ...
 
-        value_t: TensorJM = self.critic_target.forward(features) # torch.Size([16, 20, in_dim]) -> torch.Size([16, 20])
+        value_t: TensorJM = self.critic_target.forward(features) # torch.Size([16, 20, in_dim]) -> torch.Size([16, 20]) # only dream loop calls this.
         value0t: TensorHM = value_t[:-1]
         value1t: TensorHM = value_t[1:]
         advantage = - value0t + reward1 + self.gamma * (1.0 - terminal1) * value1t

@@ -51,17 +51,17 @@ class RSSMCore(nn.Module):
                 post, (h, z) = self.cell.forward(embeds[i], actions[i], reset_masks[i], (h, z)) # h:(B, deter_dim), z:(B, stoch_dim * stoch_discrete)
             else:
                 post, (h, z) = self.cell.forward_prior(actions[i], reset_masks[i], (h, z))  # open loop: post=prior
-            posts.append(post)
+            posts.append(post) # post, (B, stoch_dim * stoch_discrete) (2, 4096)
             states_h.append(h)
             samples.append(z)
 
-        posts = torch.stack(posts)          # (T,BI,2S)
+        posts = torch.stack(posts)          # (T,BI,stoch_dim * stoch_discrete) (11, 2, 4096)
         states_h = torch.stack(states_h)    # (T,BI,D)
-        samples = torch.stack(samples)      # (T,BI,S)
-        priors = self.cell.batch_prior(states_h)  # (T,BI,2S)
-        features = self.to_feature(states_h, samples)   # (T,BI,D+S)
+        samples = torch.stack(samples)      # (T,BI,stoch_dim * stoch_discrete)
+        priors = self.cell.batch_prior(states_h)  # (T,BI,stoch_dim * stoch_discrete)
+        features = self.to_feature(states_h, samples)   # (T,BI,D+stoch_dim * stoch_discrete)
 
-        posts = posts.reshape(T, B, I, -1)  # (T,BI,X) => (T,B,I,X)
+        posts = posts.reshape(T, B, I, -1)  # (T,BI,X) => (T,B,I,X) (11, 2, 1, 4096)
         states_h = states_h.reshape(T, B, I, -1)
         samples = samples.reshape(T, B, I, -1)
         priors = priors.reshape(T, B, I, -1)
@@ -192,7 +192,7 @@ class RSSMCell(nn.Module):
         prior = self.prior_mlp(x)  # tensor(B,2S)
         return prior
 
-    def zdistr(self, pp: Tensor) -> D.Distribution: #pp: stoch, tensor(B, 1024)
+    def zdistr(self, pp: Tensor) -> D.Distribution: #pp: stoch, tensor(B, stoch_dim * stoch_discrete)
         # pp = post or prior
         if self.stoch_discrete:
             logits = pp.reshape(pp.shape[:-1] + (self.stoch_dim, self.stoch_discrete)) # torch.Size([B, stoch_dim, stoch_discrete])

@@ -29,6 +29,7 @@ class Dreamer(nn.Module):
         super().__init__()
         assert conf.action_dim > 0, "Need to set action_dim to match environment"
         state_dim = conf.deter_dim + conf.stoch_dim * (conf.stoch_discrete or 1)
+        self.iwae_samples = conf.iwae_samples
 
         # World model
 
@@ -122,7 +123,7 @@ class Dreamer(nn.Module):
                                   in_state,
                                   iwae_samples=iwae_samples,
                                   do_open_loop=do_open_loop,
-                                  do_image_pred=do_image_pred) # features: torch.Size([T, B, I, in_dim])
+                                  do_image_pred=do_image_pred) # features: tensor(T,B,I,Deter+Stoch)
 
         # Map probe
 
@@ -134,10 +135,10 @@ class Dreamer(nn.Module):
 
         in_state_dream: StateB = map_structure(states, lambda x: flatten_batch(x.detach())[0])  # type: ignore  # (T,B,I) => (TBI)
         # Note features_dream includes the starting "real" features at features_dream[0]
-        features_dream, actions_dream, rewards_dream, terminals_dream = \
+        features_dream, actions_dream, rewards_dream, terminals_dream, posts_dream = \
             self.dream(in_state_dream, H, self.ac.actor_grad == 'dynamics')  # (H+1,TBI,D)
         (loss_actor, loss_critic), metrics_ac, tensors_ac = \
-            self.ac.training_step(features_dream, actions_dream, rewards_dream, terminals_dream)
+            self.ac.training_step(features_dream, actions_dream, rewards_dream, terminals_dream, posts=posts_dream, d=self.wm.core.zdistr)
         metrics.update(**metrics_ac)
         tensors.update(policy_value=unflatten_batch(tensors_ac['value'][0], (T, B, I)).mean(-1))
 
@@ -150,9 +151,9 @@ class Dreamer(nn.Module):
                 # and here for inspection purposes we only dream from first step, so it's (H*B).
                 # Oh, and we set here H=T-1, so we get (T,B), and the dreamed experience aligns with actual.
                 in_state_dream: StateB = map_structure(states, lambda x: x.detach()[0, :, 0])  # type: ignore  # (T,B,I) => (B)
-                features_dream, actions_dream, rewards_dream, terminals_dream = self.dream(in_state_dream, T - 1)  # H = T-1
+                features_dream, actions_dream, rewards_dream, terminals_dream, posts_dream = self.dream(in_state_dream, T - 1)  # H = T-1
                 image_dream = self.wm.decoder.image.forward(features_dream)
-                _, _, tensors_ac = self.ac.training_step(features_dream, actions_dream, rewards_dream, terminals_dream, log_only=True)
+                _, _, tensors_ac = self.ac.training_step(features_dream, actions_dream, rewards_dream, terminals_dream, posts=posts_dream, d=self.wm.core.zdistr, log_only=True)
                 # The tensors are intentionally named same as in tensors, so the logged npz looks the same for dreamed or not
                 dream_tensors = dict(action_pred=torch.cat([obs['action'][:1], actions_dream]),  # first action is real from previous step
                                      reward_pred=rewards_dream.mean,
@@ -167,12 +168,13 @@ class Dreamer(nn.Module):
     def dream(self, in_state: StateB, imag_horizon: int, dynamics_gradients=False):
         features = []
         actions = []
+        posts = []
         state = in_state
         self.wm.requires_grad_(False)  # Prevent dynamics gradiens from affecting world model
 
         for i in range(imag_horizon):
             feature = self.wm.core.to_feature(*state)
-            action_dist = self.ac.forward_actor(feature)
+            action_dist = self.ac.forward_actor(feature) # grad of actor is here.
             if dynamics_gradients:
                 action = action_dist.rsample()
             else:
@@ -181,8 +183,10 @@ class Dreamer(nn.Module):
             actions.append(action)
             # When using dynamics gradients, this causes gradients in RSSM, which we don't want.
             # This is handled in backprop - the optimizer_model will ignore gradients from loss_actor.
-            _, state = self.wm.core.cell.forward_prior(action, None, state)
-
+            post, state = self.wm.core.cell.forward_prior(action, None, state) # (TBI, stoch_dim * stoch_discrete) (22, 4096)
+            posts.append(post)
+            
+        posts = torch.stack(posts) # (H, TBI,stoch_dim * stoch_discrete) (7, 22, 4096)
         feature = self.wm.core.to_feature(*state)
         features.append(feature)
         features = torch.stack(features)  # (H+1,TBI,D)
@@ -192,7 +196,7 @@ class Dreamer(nn.Module):
         terminals = self.wm.decoder.terminal.forward(features)  # (H+1,TBI)
 
         self.wm.requires_grad_(True)
-        return features, actions, rewards, terminals
+        return features, actions, rewards, terminals, posts
 
     def __str__(self):
         # Short representation
@@ -298,13 +302,15 @@ class WorldModel(nn.Module):
         if check_shape_contains_factor(post.shape, 7):
             raise Exception(f'post.shape={str(post.shape)}')
         dprior = d(prior)
-        dpost = d(post)
+        dpost = d(post) # (T,B,I, stoch_dim, stoch_discrete) 
         #TODO:!!!!!!!!!!!!!!!removethis
         if check_shape_contains_factor(dprior.mean.shape, 7):
             raise Exception(f'dprior.shape={str(dprior.mean.shape)}')
         if check_shape_contains_factor(dpost.mean.shape, 7):
             raise Exception(f'dpost.shape={str(dpost.mean.shape)}')
         #TODO:!!!!!!!!!!!!!!! add d(post.detach() to storage, to calculate D.kl.kl_divergence()
+        # convert tot TBI with this? in_state_dream: StateB = map_structure(states, lambda x: flatten_batch(x.detach())[0])  # type: ignore  # (T,B,I) => (TBI)
+        dpost_to_store = d(flatten_batch(post.detach())[0])
         loss_kl_exact = D.kl.kl_divergence(dpost, dprior)  # (T,B,I)
         if iwae_samples == 1:
             # Analytic KL loss, standard for VAE
