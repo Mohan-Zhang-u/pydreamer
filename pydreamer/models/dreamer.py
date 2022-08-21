@@ -300,10 +300,10 @@ class WorldModel(nn.Module):
         dprior = d(prior)
         dpost = d(post)
         #TODO:!!!!!!!!!!!!!!!removethis
-        if check_shape_contains_factor(dprior.shape, 7):
-            raise Exception(f'dprior.shape={str(dprior.shape)}')
-        if check_shape_contains_factor(post.shape, 7):
-            raise Exception(f'dpost.shape={str(dpost.shape)}')
+        if check_shape_contains_factor(dprior.mean.shape, 7):
+            raise Exception(f'dprior.shape={str(dprior.mean.shape)}')
+        if check_shape_contains_factor(post.mean.shape, 7):
+            raise Exception(f'dpost.shape={str(dpost.mean.shape)}')
         #TODO:!!!!!!!!!!!!!!! add d(post.detach() to storage, to calculate D.kl.kl_divergence()
         loss_kl_exact = D.kl.kl_divergence(dpost, dprior)  # (T,B,I)
         if iwae_samples == 1:

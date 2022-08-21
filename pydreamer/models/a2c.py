@@ -41,6 +41,7 @@ class ActorCritic(nn.Module):
         self.train_steps = 0
 
     def forward_actor(self, features: Tensor) -> D.Distribution:
+        #TODO:!!!!!!!!!!!!!!! check whether actor is being used in data collection and when.
         y = self.actor.forward(features).float()  # .float() to force float32 on AMP # torch.Size([20, in_dim]) -> torch.Size([20, 2])
 
         if self.actor_dist == 'onehot':
