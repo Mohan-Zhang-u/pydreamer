@@ -7,6 +7,8 @@ file:///home/mohan/GitRepos/pydreamer/mlruns/0/d895d523b6e54db1a1056e3cfc9a8224/
 file:///home/mohan/GitRepos/pydreamer/mlruns/0/20065505f35948adb53e25c8f29d2e7d/artifacts/episodes/0
 file:///home/mohan/GitRepos/pydreamer/mlruns/0/e8c9cab8d28445c19e2930807ae317b6/artifacts/episodes/0
 file:///home/mohan/GitRepos/pydreamer/mlruns/0/93d4e4ffe9f541cc8d57134d206aef28/artifacts/episodes/0
+file:///home/mohan/GitRepos/pydreamer/mlruns/0/fa9c555bbee34e12ab62bc655963e10d/artifacts/episodes/0
+file:///home/mohan/GitRepos/pydreamer/mlruns/0/5f6e6060cb664148a887f7d152c00c4f/artifacts/episodes/0
 
 Scripts to run:
 python train.py --configs defaults unityenv --env_id UnityEnv-1ball4goals --run_name UnityEnv-1ball4goals_1 --resume_id f7963719f9724359b63d919361617f5f --offline_data_dir ./mlruns/0/f7963719f9724359b63d919361617f5f/artifacts/episodes/0
