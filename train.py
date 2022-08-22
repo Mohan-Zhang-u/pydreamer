@@ -242,15 +242,19 @@ def run(conf):
 
                     for opt in optimizers:
                         opt.zero_grad()
+                    loss_diversity = None
                     try:
                         #!!!!!!!!!!! sum up? check scale? check for each loss? move loss_diversity to first and retrain_graph.
                         loss_model, loss_probe, loss_actor, loss_critic, loss_diversity = losses
                     except ValueError as e:
                         loss_model, loss_probe, loss_actor, loss_critic = losses
+                    if loss_diversity is not None:
+                        scaler.scale(loss_diversity).backward(retain_graph=True)
+                    losses = (loss_model, loss_probe, loss_actor, loss_critic)
                     for loss in losses:
-                        scaler.scale(loss).backward(retain_graph=True)
-                    for opt in optimizers:
-                        opt.zero_grad()
+                        scaler.scale(loss).backward()
+                    # for opt in optimizers:
+                    #     opt.zero_grad()
 
                 # Grad step
 
