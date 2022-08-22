@@ -138,8 +138,13 @@ class Dreamer(nn.Module):
         # Note features_dream includes the starting "real" features at features_dream[0]
         features_dream, actions_dream, rewards_dream, terminals_dream, posts_dream = \
             self.dream(in_state_dream, H, self.ac.actor_grad == 'dynamics')  # (H+1,TBI,D)
-        (loss_actor, loss_critic), metrics_ac, tensors_ac = \
-            self.ac.training_step(features_dream, actions_dream, rewards_dream, terminals_dream, posts=posts_dream, d=self.wm.core.zdistr, distribution_buffer=self.wm.distribution_buffer)
+        ac_training_result = self.ac.training_step(features_dream, actions_dream, rewards_dream, terminals_dream, posts=posts_dream, d=self.wm.core.zdistr, distribution_buffer=self.wm.distribution_buffer)
+        loss_diversity = None
+        try:
+            (loss_actor, loss_critic, loss_diversity), metrics_ac, tensors_ac = ac_training_result
+                
+        except ValueError as e:
+            (loss_actor, loss_critic), metrics_ac, tensors_ac = ac_training_result
         metrics.update(**metrics_ac)
         tensors.update(policy_value=unflatten_batch(tensors_ac['value'][0], (T, B, I)).mean(-1))
 
@@ -154,7 +159,7 @@ class Dreamer(nn.Module):
                 in_state_dream: StateB = map_structure(states, lambda x: x.detach()[0, :, 0])  # type: ignore  # (T,B,I) => (B)
                 features_dream, actions_dream, rewards_dream, terminals_dream, posts_dream = self.dream(in_state_dream, T - 1)  # H = T-1
                 image_dream = self.wm.decoder.image.forward(features_dream)
-                _, _, tensors_ac = self.ac.training_step(features_dream, actions_dream, rewards_dream, terminals_dream, posts=posts_dream, d=self.wm.core.zdistr, distribution_buffer=self.wm.distribution_buffer, log_only=True)
+                _, _, tensors_ac = self.ac.training_step(features_dream, actions_dream, rewards_dream, terminals_dream, posts=posts_dream, d=None, distribution_buffer=None, log_only=True)
                 # The tensors are intentionally named same as in tensors, so the logged npz looks the same for dreamed or not
                 dream_tensors = dict(action_pred=torch.cat([obs['action'][:1], actions_dream]),  # first action is real from previous step
                                      reward_pred=rewards_dream.mean,
@@ -163,8 +168,12 @@ class Dreamer(nn.Module):
                                      **tensors_ac)
                 assert dream_tensors['action_pred'].shape == obs['action'].shape
                 assert dream_tensors['image_pred'].shape == obs['image'].shape
-
-        return (loss_model, loss_probe, loss_actor, loss_critic), out_state, metrics, tensors, dream_tensors
+        if loss_diversity:
+            #TODO:!!!!!!!!!!!!!!
+            return (loss_model, loss_probe, loss_actor, loss_critic, loss_diversity), out_state, metrics, tensors, dream_tensors
+            # return (loss_model, loss_probe, loss_actor, loss_critic + loss_diversity), out_state, metrics, tensors, dream_tensors
+        else:
+            return (loss_model, loss_probe, loss_actor, loss_critic), out_state, metrics, tensors, dream_tensors
 
     def dream(self, in_state: StateB, imag_horizon: int, dynamics_gradients=False):
         features = []

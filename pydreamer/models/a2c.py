@@ -33,6 +33,7 @@ class ActorCritic(nn.Module):
         self.target_interval = target_interval
         self.actor_grad = actor_grad
         self.actor_dist = actor_dist
+        self.dist_distance_weight = dist_distance_weight
 
         actor_out_dim = out_actions if actor_dist == 'onehot' else 2 * out_actions
         self.actor = MLP(in_dim, actor_out_dim, hidden_dim, hidden_layers, layer_norm)
@@ -75,8 +76,9 @@ class ActorCritic(nn.Module):
                 self.update_critic_target()
             self.train_steps += 1
             
-        dposts = d(posts) #TODO:!!!!!!!!!!!!!!!!!!!! use to compute the diversity loss! # (H, TBI, stoch_dim, stoch_discrete) (7, 22, 64, 64)
-        min_distance = distribution_buffer.compute_min_distance(dposts)
+        if d is not None:
+            dposts = d(posts) #TODO:!!!!!!!!!!!!!!!!!!!! use to compute the diversity loss! # (H, TBI, stoch_dim, stoch_discrete) (7, 22, 64, 64)
+            min_distance = distribution_buffer.compute_min_distance(dposts)
         
 
         reward1: TensorHM = rewards.mean[1:] # (H, TBI)
@@ -114,6 +116,9 @@ class ActorCritic(nn.Module):
         value0: TensorHM = value[:-1]
         loss_critic = 0.5 * torch.square(value_target.detach() - value0) # (H, TBI)
         loss_critic = (loss_critic * reality_weight).mean() # (1,)
+        
+        # if min_distance != float('inf'):
+        #     loss_critic = loss_critic + self.dist_distance_weight * min_distance
 
         # Actor loss
 
@@ -130,28 +135,48 @@ class ActorCritic(nn.Module):
         loss_actor = loss_policy - self.entropy_weight * policy_entropy # (H, TBI)
         loss_actor = (loss_actor * reality_weight).mean()
         
-        if min_distance == float('inf'):
-            min_distance = 0
         
         assert (loss_policy.requires_grad and policy_entropy.requires_grad) or not loss_critic.requires_grad
+        
+        if d is not None and min_distance != float('inf') and self.dist_distance_weight > 0:
+            loss_diversity = self.dist_distance_weight * min_distance
+            with torch.no_grad():
+                metrics = dict(loss_critic=loss_critic.detach(),
+                            loss_actor=loss_actor.detach(),
+                            loss_diversity=loss_diversity.detach(),
+                            policy_entropy=policy_entropy.mean(),
+                            policy_value=value0[0].mean(),  # Value of real states
+                            policy_value_im=value0.mean(),  # Value of imagined states
+                            policy_reward=reward1.mean(),
+                            policy_reward_std=reward1.std(),
+                            )
+                tensors = dict(value=value.detach(),
+                            value_target=value_target.detach(),
+                            value_advantage=advantage.detach(),
+                            value_advantage_gae=advantage_gae.detach(),
+                            value_weight=reality_weight.detach(),
+                            )
 
-        with torch.no_grad():
-            metrics = dict(loss_critic=loss_critic.detach(),
-                           loss_actor=loss_actor.detach(),
-                           policy_entropy=policy_entropy.mean(),
-                           policy_value=value0[0].mean(),  # Value of real states
-                           policy_value_im=value0.mean(),  # Value of imagined states
-                           policy_reward=reward1.mean(),
-                           policy_reward_std=reward1.std(),
-                           )
-            tensors = dict(value=value.detach(),
-                           value_target=value_target.detach(),
-                           value_advantage=advantage.detach(),
-                           value_advantage_gae=advantage_gae.detach(),
-                           value_weight=reality_weight.detach(),
-                           )
+            return (loss_actor, loss_critic, loss_diversity), metrics, tensors
+            
+        else:
+            with torch.no_grad():
+                metrics = dict(loss_critic=loss_critic.detach(),
+                            loss_actor=loss_actor.detach(),
+                            policy_entropy=policy_entropy.mean(),
+                            policy_value=value0[0].mean(),  # Value of real states
+                            policy_value_im=value0.mean(),  # Value of imagined states
+                            policy_reward=reward1.mean(),
+                            policy_reward_std=reward1.std(),
+                            )
+                tensors = dict(value=value.detach(),
+                            value_target=value_target.detach(),
+                            value_advantage=advantage.detach(),
+                            value_advantage_gae=advantage_gae.detach(),
+                            value_weight=reality_weight.detach(),
+                            )
 
-        return (loss_actor, loss_critic), metrics, tensors
+            return (loss_actor, loss_critic), metrics, tensors
 
     def update_critic_target(self):
         self.critic_target.load_state_dict(self.critic.state_dict())  # type: ignore

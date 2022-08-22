@@ -38,7 +38,7 @@ defaults:
   vecobs_weight: 1.0
   reward_weight: 1.0
   terminal_weight: 1.0
-  dist_distance_weight: 1.0
+  dist_distance_weight: 0.05
   adam_lr: 3.0e-4
   adam_lr_actor: 1.0e-4
   adam_lr_critic: 1.0e-4
