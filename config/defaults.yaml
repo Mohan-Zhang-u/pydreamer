@@ -52,6 +52,7 @@ defaults:
   image_decoder_min_prob: 0
   amp: True
   distribution_buffer_size: 10000
+  distance_calculator: 'mean'
 
   # Eval
   test_batches: 61  # For unbiased test needs to be enough to cover full episodes

@@ -262,8 +262,9 @@ def configure_logging(prefix='[%(name)s]', level=logging.DEBUG, info_color=None)
 
 
 class DistributionBuffer:
-    def __init__(self, max_len):
+    def __init__(self, max_len, distance_calculator):
         self.max_len = max_len
+        self.distance_calculator = distance_calculator
         self.q = [] # FIFO
         
     def __len__(self):
@@ -274,7 +275,13 @@ class DistributionBuffer:
         self.q = self.q[-self.max_len:]
         
     def compute_distance(self, dist_A, dist_B):
-        return kl_divergence(dist_A, dist_B).sum()
+        if self.distance_calculator == 'mean':
+            return kl_divergence(dist_A, dist_B).mean()
+        if self.distance_calculator == 'sum':
+            return kl_divergence(dist_A, dist_B).sum()
+        if self.distance_calculator == 'max':
+            return kl_divergence(dist_A, dist_B).max()
+        raise ValueError(f'Unknown distance calculator: {self.distance_calculator}')
         
     def compute_min_distance(self, dposts):
         #TODO:!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! do we need to first detach then compute distance?

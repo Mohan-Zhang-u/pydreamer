@@ -79,17 +79,17 @@ class ActorCritic(nn.Module):
         min_distance = distribution_buffer.compute_min_distance(dposts)
         
 
-        reward1: TensorHM = rewards.mean[1:]
-        terminal0: TensorHM = terminals.mean[:-1]
-        terminal1: TensorHM = terminals.mean[1:]
+        reward1: TensorHM = rewards.mean[1:] # (H, TBI)
+        terminal0: TensorHM = terminals.mean[:-1] # (H, TBI)
+        terminal1: TensorHM = terminals.mean[1:] # (H, TBI)
 
         # GAE from https://arxiv.org/abs/1506.02438 eq (16)
         #   advantage_gae[t] = advantage[t] + (gamma lambda) advantage[t+1] + (gamma lambda)^2 advantage[t+2] + ...
 
-        value_t: TensorJM = self.critic_target.forward(features) # torch.Size([16, 20, in_dim]) -> torch.Size([16, 20]) # only dream loop calls this.
-        value0t: TensorHM = value_t[:-1]
-        value1t: TensorHM = value_t[1:]
-        advantage = - value0t + reward1 + self.gamma * (1.0 - terminal1) * value1t
+        value_t: TensorJM = self.critic_target.forward(features) # torch.Size([H+1, TBI, deter+stoch]) -> (H+1, TBI) # only dream loop calls this.
+        value0t: TensorHM = value_t[:-1] # (H, TBI)
+        value1t: TensorHM = value_t[1:] # (H, TBI)
+        advantage = - value0t + reward1 + self.gamma * (1.0 - terminal1) * value1t # (H, TBI)
         advantage_gae = []
         agae = None
         for adv, term in zip(reversed(advantage.unbind()), reversed(terminal1.unbind())):
@@ -99,21 +99,21 @@ class ActorCritic(nn.Module):
                 agae = adv + self.lambda_ * self.gamma * (1.0 - term) * agae
             advantage_gae.append(agae)
         advantage_gae.reverse()
-        advantage_gae = torch.stack(advantage_gae)
+        advantage_gae = torch.stack(advantage_gae) # (H, TBI)
         # Note: if lambda=0, then advantage_gae=advantage, then value_target = advantage + value0t = reward + gamma * value1t
-        value_target = advantage_gae + value0t
+        value_target = advantage_gae + value0t # (H, TBI)
 
         # When calculating losses, should ignore terminal states, or anything after, so:
         #   reality_weight[i] = (1-terminal[0]) (1-terminal[1]) ... (1-terminal[i])
         # Note this takes care of the case when initial state features[0] is terminal - it will get weighted by (1-terminals[0]).
-        reality_weight = (1 - terminal0.detach()).log().cumsum(dim=0).exp()
+        reality_weight = (1 - terminal0.detach()).log().cumsum(dim=0).exp() # (H, TBI)
 
         # Critic loss
 
         value: TensorJM = self.critic.forward(features.detach())
         value0: TensorHM = value[:-1]
-        loss_critic = 0.5 * torch.square(value_target.detach() - value0)
-        loss_critic = (loss_critic * reality_weight).mean()
+        loss_critic = 0.5 * torch.square(value_target.detach() - value0) # (H, TBI)
+        loss_critic = (loss_critic * reality_weight).mean() # (1,)
 
         # Actor loss
 
@@ -122,12 +122,12 @@ class ActorCritic(nn.Module):
             action_logprob = policy_distr.log_prob(actions.detach())
             loss_policy = - action_logprob * advantage_gae.detach()
         elif self.actor_grad == 'dynamics':
-            loss_policy = - value_target
+            loss_policy = - value_target # (H, TBI)
         else:
             assert False, self.actor_grad
 
-        policy_entropy = policy_distr.entropy()
-        loss_actor = loss_policy - self.entropy_weight * policy_entropy
+        policy_entropy = policy_distr.entropy() # (H, TBI)
+        loss_actor = loss_policy - self.entropy_weight * policy_entropy # (H, TBI)
         loss_actor = (loss_actor * reality_weight).mean()
         
         if min_distance == float('inf'):

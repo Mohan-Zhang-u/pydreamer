@@ -245,7 +245,7 @@ class WorldModel(nn.Module):
                              gru_type=conf.gru_type,
                              layer_norm=conf.layer_norm)
 
-        self.distribution_buffer = DistributionBuffer(max_len=conf.distribution_buffer_size)
+        self.distribution_buffer = DistributionBuffer(max_len=conf.distribution_buffer_size, distance_calculator=conf.distance_calculator)
         
         # Init
 
