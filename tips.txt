@@ -9,6 +9,7 @@ file:///home/mohan/GitRepos/pydreamer/mlruns/0/e8c9cab8d28445c19e2930807ae317b6/
 file:///home/mohan/GitRepos/pydreamer/mlruns/0/93d4e4ffe9f541cc8d57134d206aef28/artifacts/episodes/0
 file:///home/mohan/GitRepos/pydreamer/mlruns/0/fa9c555bbee34e12ab62bc655963e10d/artifacts/episodes/0
 file:///home/mohan/GitRepos/pydreamer/mlruns/0/5f6e6060cb664148a887f7d152c00c4f/artifacts/episodes/0
+file:///home/mohan/GitRepos/pydreamer/mlruns/0/5f40e9f604284d0b8c93832646ba257b/artifacts/episodes_eval/0
 
 Scripts to run:
 python train.py --configs defaults unityenv --env_id UnityEnv-1ball4goals --run_name UnityEnv-1ball4goals_1 --resume_id f7963719f9724359b63d919361617f5f --offline_data_dir ./mlruns/0/f7963719f9724359b63d919361617f5f/artifacts/episodes/0
@@ -19,7 +20,7 @@ python train.py --configs defaults rlgridworldenv --env_id RLGridWorldEnv-FourTa
 
 python train.py --configs defaults rlgridworldenv --env_id RLGridWorldEnv-FourTargets --run_name RLGridWorldEnv-FourTargets_1 --offline_data_dir ./mlruns/0/7ec16f56b93c4ce8816c6713f048bc84/artifacts/episodes/0
 
-python train.py --configs defaults rlgridworldenv --env_id RLGridWorldEnv-FourTargets --run_name RLGridWorldEnv-FourTargets_1
+python train.py --configs defaults rlgridworldenv --env_id RLGridWorldEnv-FourTargets --run_name RLGridWorldEnv-FourTargets_1 --offline_data_dir ./mlruns/0/5f6e6060cb664148a887f7d152c00c4f/artifacts/episodes/0
 
 
 Notes:

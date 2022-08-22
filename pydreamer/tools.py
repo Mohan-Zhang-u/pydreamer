@@ -272,7 +272,10 @@ class DistributionBuffer:
     
     def add(self, dist):
         self.q.append(dist)
-        self.q = self.q[-self.max_len:]
+        if len(self.q) > self.max_len:
+            print("q stack overflow")
+            self.q = self.q[-self.max_len:]
+        
         
     def compute_distance(self, dist_A, dist_B):
         if self.distance_calculator == 'mean':

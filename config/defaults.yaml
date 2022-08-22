@@ -51,7 +51,7 @@ defaults:
   grad_clip_ac: 200
   image_decoder_min_prob: 0
   amp: True
-  distribution_buffer_size: 500
+  distribution_buffer_size: 4000
   distance_calculator: 'mean'
 
   # Eval

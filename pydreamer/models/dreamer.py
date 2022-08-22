@@ -319,7 +319,10 @@ class WorldModel(nn.Module):
             raise Exception(f'dpost.shape={str(dpost.mean.shape)}')
         #TODO:!!!!!!!!!!!!!!! add d(post.detach() to storage, to calculate D.kl.kl_divergence()
         # convert tot TBI with this? in_state_dream: StateB = map_structure(states, lambda x: flatten_batch(x.detach())[0])  # type: ignore  # (T,B,I) => (TBI)
-        dpost_to_store = d(flatten_batch(post.detach())[0])
+        # remove this
+        # assert post.shape == torch.Size([11,2,1,4096])
+        if not do_open_loop:
+            dpost_to_store = d(flatten_batch(post.detach())[0])
         self.distribution_buffer.add(dpost_to_store)
         loss_kl_exact = D.kl.kl_divergence(dpost, dprior)  # (T,B,I) (22, 64, 64)
         if iwae_samples == 1:
