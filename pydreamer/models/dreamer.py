@@ -129,7 +129,7 @@ class Dreamer(nn.Module):
         try:
             loss_model, loss_diversity_wm = loss_models
                 
-        except ValueError as e:
+        except TypeError as e:
             loss_model = loss_models
 
         # Map probe
