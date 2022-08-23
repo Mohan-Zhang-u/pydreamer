@@ -39,7 +39,7 @@ defaults:
   reward_weight: 1.0
   terminal_weight: 1.0
   dist_distance_weight_ac: 0.0
-  dist_distance_weight_wm: 0.05
+  dist_distance_weight_wm: 1.0
   adam_lr: 3.0e-4
   adam_lr_actor: 1.0e-4
   adam_lr_critic: 1.0e-4

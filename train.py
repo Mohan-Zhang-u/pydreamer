@@ -242,12 +242,29 @@ def run(conf):
 
                     for opt in optimizers:
                         opt.zero_grad()
+                    
+                    #TODO:!!!!!!!!!!!!!!! does add to world model loss reasonable?
+                    loss_diversity_wm = losses.pop('loss_diversity_wm')
+                    if loss_diversity_wm is not None:
+                        losses['loss_model'] = losses['loss_model'] + loss_diversity_wm
+                    
+                    # or, deal with loss_diversity_wm first
+                    # try:
+                    #     loss_diversity_wm = losses.pop('loss_diversity_wm')
+                    #     if loss_diversity_wm is not None:
+                    #         scaler.scale(loss_diversity_wm).backward(retain_graph=True)
+                    # except KeyError as e:
+                    #     pass
+                    
                     for key in losses:
                         if key == 'loss_diversity_ac':
-                            scaler.scale(losses[key]).backward(retain_graph=True)
-                            raise Exception('Not implemented')
+                            if losses[key] is not None:
+                                scaler.scale(losses[key]).backward(retain_graph=True)
+                                raise Exception('Not implemented')
                         elif key == 'loss_diversity_wm':
-                            scaler.scale(losses[key]).backward()
+                            if losses[key] is not None:
+                                scaler.scale(losses[key]).backward()
+                                raise Exception('Not implemented')
                         else:
                             scaler.scale(losses[key]).backward()
                     # loss_diversity_ac = None

@@ -334,7 +334,7 @@ class WorldModel(nn.Module):
         # remove this
         # assert post.shape == torch.Size([11,2,1,4096])
         if not do_open_loop:
-            min_distance = self.distribution_buffer.compute_min_distance(flatten_batch(post)[0]) # no detach to pass in gradients.
+            min_distance = self.distribution_buffer.compute_min_distance(d(flatten_batch(post)[0])) # no detach to pass in gradients.
             dpost_to_store = d(flatten_batch(post.detach())[0])
             self.distribution_buffer.add(dpost_to_store)
             
