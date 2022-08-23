@@ -46,7 +46,7 @@ class Dreamer(nn.Module):
                               target_interval=conf.target_interval,
                               actor_grad=conf.actor_grad,
                               actor_dist=conf.actor_dist,
-                              dist_distance_weight=conf.dist_distance_weight,
+                              dist_distance_weight_ac=conf.dist_distance_weight_ac,
                               )
 
         # Map probe
@@ -119,12 +119,18 @@ class Dreamer(nn.Module):
 
         # World model
 
-        loss_model, features, states, out_state, metrics, tensors = \
+        loss_models, features, states, out_state, metrics, tensors = \
             self.wm.training_step(obs,
                                   in_state,
                                   iwae_samples=iwae_samples,
                                   do_open_loop=do_open_loop,
                                   do_image_pred=do_image_pred) # features: tensor(T,B,I,Deter+Stoch)
+        loss_diversity_wm = None
+        try:
+            loss_model, loss_diversity_wm = loss_models
+                
+        except ValueError as e:
+            loss_model = loss_models
 
         # Map probe
 
@@ -139,9 +145,9 @@ class Dreamer(nn.Module):
         features_dream, actions_dream, rewards_dream, terminals_dream, posts_dream = \
             self.dream(in_state_dream, H, self.ac.actor_grad == 'dynamics')  # (H+1,TBI,D)
         ac_training_result = self.ac.training_step(features_dream, actions_dream, rewards_dream, terminals_dream, posts=posts_dream, d=self.wm.core.zdistr, distribution_buffer=self.wm.distribution_buffer)
-        loss_diversity = None
+        loss_diversity_ac = None
         try:
-            (loss_actor, loss_critic, loss_diversity), metrics_ac, tensors_ac = ac_training_result
+            (loss_actor, loss_critic, loss_diversity_ac), metrics_ac, tensors_ac = ac_training_result
                 
         except ValueError as e:
             (loss_actor, loss_critic), metrics_ac, tensors_ac = ac_training_result
@@ -168,12 +174,17 @@ class Dreamer(nn.Module):
                                      **tensors_ac)
                 assert dream_tensors['action_pred'].shape == obs['action'].shape
                 assert dream_tensors['image_pred'].shape == obs['image'].shape
-        if loss_diversity:
-            #TODO:!!!!!!!!!!!!!!
-            return (loss_model, loss_probe, loss_actor, loss_critic, loss_diversity), out_state, metrics, tensors, dream_tensors
-            # return (loss_model, loss_probe, loss_actor, loss_critic + loss_diversity), out_state, metrics, tensors, dream_tensors
-        else:
-            return (loss_model, loss_probe, loss_actor, loss_critic), out_state, metrics, tensors, dream_tensors
+        
+        loss_dict={}
+        loss_dict.update(loss_model=loss_model, loss_probe=loss_probe, loss_actor=loss_actor, loss_critic=loss_critic, loss_diversity_ac=loss_diversity_ac, loss_diversity_wm=loss_diversity_wm)
+        return loss_dict, out_state, metrics, tensors, dream_tensors
+        # (loss_model, loss_probe, loss_actor, loss_critic, loss_diversity_ac, loss_diversity_wm), out_state, metrics, tensors, dream_tensors
+        # if loss_diversity_ac:
+        #     #TODO:!!!!!!!!!!!!!!
+        #     return (loss_model, loss_probe, loss_actor, loss_critic, loss_diversity_ac), out_state, metrics, tensors, dream_tensors
+        #     # return (loss_model, loss_probe, loss_actor, loss_critic + loss_diversity_ac), out_state, metrics, tensors, dream_tensors
+        # else:
+        #     return (loss_model, loss_probe, loss_actor, loss_critic), out_state, metrics, tensors, dream_tensors
 
     def dream(self, in_state: StateB, imag_horizon: int, dynamics_gradients=False):
         features = []
@@ -232,6 +243,7 @@ class WorldModel(nn.Module):
         self.stoch_discrete = conf.stoch_discrete
         self.kl_weight = conf.kl_weight
         self.kl_balance = None if conf.kl_balance == 0.5 else conf.kl_balance
+        self.dist_distance_weight_wm = conf.dist_distance_weight_wm
 
         # Encoder
 
@@ -322,8 +334,10 @@ class WorldModel(nn.Module):
         # remove this
         # assert post.shape == torch.Size([11,2,1,4096])
         if not do_open_loop:
+            min_distance = self.distribution_buffer.compute_min_distance(flatten_batch(post)[0]) # no detach to pass in gradients.
             dpost_to_store = d(flatten_batch(post.detach())[0])
-        self.distribution_buffer.add(dpost_to_store)
+            self.distribution_buffer.add(dpost_to_store)
+            
         loss_kl_exact = D.kl.kl_divergence(dpost, dprior)  # (T,B,I) (22, 64, 64)
         if iwae_samples == 1:
             # Analytic KL loss, standard for VAE
@@ -345,32 +359,67 @@ class WorldModel(nn.Module):
         loss_model = -logavgexp(-loss_model_tbi, dim=2)
 
         # Metrics
+        
+        if d is not None and min_distance != float('inf') and self.dist_distance_weight_wm > 0:
+            loss_diversity_wm = self.dist_distance_weight_wm * min_distance
 
-        with torch.no_grad():
-            loss_kl = -logavgexp(-loss_kl_exact, dim=2)  # Log exact KL loss even when using IWAE, it avoids random negative values
-            entropy_prior = dprior.entropy().mean(dim=2)
-            entropy_post = dpost.entropy().mean(dim=2)
-            tensors.update(loss_kl=loss_kl.detach(),
-                           entropy_prior=entropy_prior,
-                           entropy_post=entropy_post)
-            metrics.update(loss_model=loss_model.mean(),
-                           loss_kl=loss_kl.mean(),
-                           entropy_prior=entropy_prior.mean(),
-                           entropy_post=entropy_post.mean())
-
-        # Predictions
-
-        if do_image_pred:
             with torch.no_grad():
-                prior_samples = self.core.zdistr(prior).sample().reshape(post_samples.shape)
-                features_prior = self.core.feature_replace_z(features, prior_samples)
-                # Decode from prior
-                _, mets, tens = self.decoder.training_step(features_prior, obs, extra_metrics=True)
-                metrics_logprob = {k.replace('loss_', 'logprob_'): v for k, v in mets.items() if k.startswith('loss_')}
-                tensors_logprob = {k.replace('loss_', 'logprob_'): v for k, v in tens.items() if k.startswith('loss_')}
-                tensors_pred = {k.replace('_rec', '_pred'): v for k, v in tens.items() if k.endswith('_rec')}
-                metrics.update(**metrics_logprob)   # logprob_image, ...
-                tensors.update(**tensors_logprob)  # logprob_image, ...
-                tensors.update(**tensors_pred)  # image_pred, ...
+                loss_kl = -logavgexp(-loss_kl_exact, dim=2)  # Log exact KL loss even when using IWAE, it avoids random negative values
+                entropy_prior = dprior.entropy().mean(dim=2)
+                entropy_post = dpost.entropy().mean(dim=2)
+                tensors.update(loss_kl=loss_kl.detach(),
+                            entropy_prior=entropy_prior,
+                            entropy_post=entropy_post,
+                            loss_diversity_wm=loss_diversity_wm.detach())
+                metrics.update(loss_model=loss_model.mean(),
+                            loss_kl=loss_kl.mean(),
+                            entropy_prior=entropy_prior.mean(),
+                            entropy_post=entropy_post.mean(),
+                            loss_diversity_wm=loss_diversity_wm.detach())
 
-        return loss_model.mean(), features, states, out_state, metrics, tensors
+            # Predictions
+
+            if do_image_pred:
+                with torch.no_grad():
+                    prior_samples = self.core.zdistr(prior).sample().reshape(post_samples.shape)
+                    features_prior = self.core.feature_replace_z(features, prior_samples)
+                    # Decode from prior
+                    _, mets, tens = self.decoder.training_step(features_prior, obs, extra_metrics=True)
+                    metrics_logprob = {k.replace('loss_', 'logprob_'): v for k, v in mets.items() if k.startswith('loss_')}
+                    tensors_logprob = {k.replace('loss_', 'logprob_'): v for k, v in tens.items() if k.startswith('loss_')}
+                    tensors_pred = {k.replace('_rec', '_pred'): v for k, v in tens.items() if k.endswith('_rec')}
+                    metrics.update(**metrics_logprob)   # logprob_image, ...
+                    tensors.update(**tensors_logprob)  # logprob_image, ...
+                    tensors.update(**tensors_pred)  # image_pred, ...
+
+            return (loss_model.mean(), loss_diversity_wm), features, states, out_state, metrics, tensors
+
+        else:
+            with torch.no_grad():
+                loss_kl = -logavgexp(-loss_kl_exact, dim=2)  # Log exact KL loss even when using IWAE, it avoids random negative values
+                entropy_prior = dprior.entropy().mean(dim=2)
+                entropy_post = dpost.entropy().mean(dim=2)
+                tensors.update(loss_kl=loss_kl.detach(),
+                            entropy_prior=entropy_prior,
+                            entropy_post=entropy_post)
+                metrics.update(loss_model=loss_model.mean(),
+                            loss_kl=loss_kl.mean(),
+                            entropy_prior=entropy_prior.mean(),
+                            entropy_post=entropy_post.mean())
+
+            # Predictions
+
+            if do_image_pred:
+                with torch.no_grad():
+                    prior_samples = self.core.zdistr(prior).sample().reshape(post_samples.shape)
+                    features_prior = self.core.feature_replace_z(features, prior_samples)
+                    # Decode from prior
+                    _, mets, tens = self.decoder.training_step(features_prior, obs, extra_metrics=True)
+                    metrics_logprob = {k.replace('loss_', 'logprob_'): v for k, v in mets.items() if k.startswith('loss_')}
+                    tensors_logprob = {k.replace('loss_', 'logprob_'): v for k, v in tens.items() if k.startswith('loss_')}
+                    tensors_pred = {k.replace('_rec', '_pred'): v for k, v in tens.items() if k.endswith('_rec')}
+                    metrics.update(**metrics_logprob)   # logprob_image, ...
+                    tensors.update(**tensors_logprob)  # logprob_image, ...
+                    tensors.update(**tensors_pred)  # image_pred, ...
+
+            return loss_model.mean(), features, states, out_state, metrics, tensors

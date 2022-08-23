@@ -22,7 +22,7 @@ class ActorCritic(nn.Module):
                  target_interval=100,
                  actor_grad='reinforce',
                  actor_dist='onehot',
-                 dist_distance_weight=0.0,
+                 dist_distance_weight_ac=0.0,
                  ):
         super().__init__()
         self.in_dim = in_dim # 3072
@@ -33,7 +33,7 @@ class ActorCritic(nn.Module):
         self.target_interval = target_interval
         self.actor_grad = actor_grad
         self.actor_dist = actor_dist
-        self.dist_distance_weight = dist_distance_weight
+        self.dist_distance_weight_ac = dist_distance_weight_ac
 
         actor_out_dim = out_actions if actor_dist == 'onehot' else 2 * out_actions
         self.actor = MLP(in_dim, actor_out_dim, hidden_dim, hidden_layers, layer_norm)
@@ -118,7 +118,7 @@ class ActorCritic(nn.Module):
         loss_critic = (loss_critic * reality_weight).mean() # (1,)
         
         # if min_distance != float('inf'):
-        #     loss_critic = loss_critic + self.dist_distance_weight * min_distance
+        #     loss_critic = loss_critic + self.dist_distance_weight_ac * min_distance
 
         # Actor loss
 
@@ -138,12 +138,12 @@ class ActorCritic(nn.Module):
         
         assert (loss_policy.requires_grad and policy_entropy.requires_grad) or not loss_critic.requires_grad
         
-        if d is not None and min_distance != float('inf') and self.dist_distance_weight > 0:
-            loss_diversity = self.dist_distance_weight * min_distance
+        if d is not None and min_distance != float('inf') and self.dist_distance_weight_ac > 0:
+            loss_diversity_ac = self.dist_distance_weight_ac * min_distance
             with torch.no_grad():
                 metrics = dict(loss_critic=loss_critic.detach(),
                             loss_actor=loss_actor.detach(),
-                            loss_diversity=loss_diversity.detach(),
+                            loss_diversity_ac=loss_diversity_ac.detach(),
                             policy_entropy=policy_entropy.mean(),
                             policy_value=value0[0].mean(),  # Value of real states
                             policy_value_im=value0.mean(),  # Value of imagined states
@@ -157,7 +157,7 @@ class ActorCritic(nn.Module):
                             value_weight=reality_weight.detach(),
                             )
 
-            return (loss_actor, loss_critic, loss_diversity), metrics, tensors
+            return (loss_actor, loss_critic, loss_diversity_ac), metrics, tensors
             
         else:
             with torch.no_grad():

@@ -242,17 +242,25 @@ def run(conf):
 
                     for opt in optimizers:
                         opt.zero_grad()
-                    loss_diversity = None
-                    try:
-                        #!!!!!!!!!!! sum up? check scale? check for each loss? move loss_diversity to first and retrain_graph.
-                        loss_model, loss_probe, loss_actor, loss_critic, loss_diversity = losses
-                    except ValueError as e:
-                        loss_model, loss_probe, loss_actor, loss_critic = losses
-                    if loss_diversity is not None:
-                        scaler.scale(loss_diversity).backward(retain_graph=True)
-                    losses = (loss_model, loss_probe, loss_actor, loss_critic)
-                    for loss in losses:
-                        scaler.scale(loss).backward()
+                    for key in losses:
+                        if key == 'loss_diversity_ac':
+                            scaler.scale(losses[key]).backward(retain_graph=True)
+                            raise Exception('Not implemented')
+                        elif key == 'loss_diversity_wm':
+                            scaler.scale(losses[key]).backward()
+                        else:
+                            scaler.scale(losses[key]).backward()
+                    # loss_diversity_ac = None
+                    # try:
+                    #     #!!!!!!!!!!! sum up? check scale? check for each loss? move loss_diversity_ac to first and retrain_graph.
+                    #     loss_model, loss_probe, loss_actor, loss_critic, loss_diversity_ac = losses
+                    # except ValueError as e:
+                    #     loss_model, loss_probe, loss_actor, loss_critic = losses
+                    # if loss_diversity_ac is not None:
+                    #     scaler.scale(loss_diversity_ac).backward(retain_graph=True)
+                    # losses = (loss_model, loss_probe, loss_actor, loss_critic)
+                    # for loss in losses:
+                    #     scaler.scale(loss).backward()
                     # for opt in optimizers:
                     #     opt.zero_grad()
 
